@@ -61,9 +61,9 @@ Sync artifacts from a source repo into this site:
 
 ```bash
 npm run sync:project -- \
-	--source-root ../usb-pd-type-c-breakout \
-	--target-root . \
-	--manifest-path learn-manifest.json
+  --source-root ../usb-pd-type-c-breakout \
+  --target-root . \
+  --manifest-path learn-manifest.json
 ```
 
 Build the static site:
@@ -106,6 +106,13 @@ Source repos should:
 1. Add a root `learn-manifest.json` file with project metadata and artifact bucket definitions.
 2. Store publishable outputs under a stable artifact root such as `documents/`.
 3. Call the reusable workflow on push to sync files into this repo.
+
+For GitHub Actions authentication, use a GitHub App instead of a personal access token:
+
+- Install the GitHub App on `maelstrom-labs/learn-maelstrom-labs` with `Contents: Read and write`.
+- Store `LEARN_SITE_APP_ID` as a GitHub Actions variable in each source repo, or as an organization variable shared with selected repos.
+- Store `LEARN_SITE_APP_PRIVATE_KEY` as a GitHub Actions secret in each source repo, or as an organization secret shared with selected repos.
+- Pass those credentials into the reusable workflow so it can mint a short-lived installation token during the run.
 
 The sync script does three things:
 

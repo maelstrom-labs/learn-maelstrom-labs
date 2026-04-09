@@ -3,6 +3,9 @@ name: Ingest Project Artifacts
 on:
   workflow_call:
     inputs:
+      github_app_id:
+        required: true
+        type: string
       target_repository:
         required: false
         type: string
@@ -24,7 +27,7 @@ on:
         type: string
         default: ""
     secrets:
-      learn_repo_token:
+      learn_site_app_private_key:
         required: true
 
 permissions:
@@ -43,12 +46,37 @@ jobs:
         with:
           path: source
 
+      - name: Resolve target repository
+        id: target-repository
+        run: |
+          TARGET_REPOSITORY="${TARGET_REPOSITORY_INPUT}"
+
+          if [[ "${TARGET_REPOSITORY}" != */* ]]; then
+            echo "Expected target_repository to be in owner/repo format." >&2
+            exit 1
+          fi
+
+          echo "owner=${TARGET_REPOSITORY%%/*}" >> "$GITHUB_OUTPUT"
+          echo "repository=${TARGET_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+        env:
+          TARGET_REPOSITORY_INPUT: ${{ inputs.target_repository }}
+
+      - name: Create learn-site installation token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ inputs.github_app_id }}
+          private-key: ${{ secrets.learn_site_app_private_key }}
+          owner: ${{ steps.target-repository.outputs.owner }}
+          repositories: ${{ steps.target-repository.outputs.repository }}
+          permission-contents: write
+
       - name: Check out learn site repository
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.target_repository }}
           ref: ${{ inputs.target_branch }}
-          token: ${{ secrets.learn_repo_token }}
+          token: ${{ steps.app-token.outputs.token }}
           path: site
 
       - name: Set up Node.js
