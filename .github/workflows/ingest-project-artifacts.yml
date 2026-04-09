@@ -1,0 +1,123 @@
+name: Ingest Project Artifacts
+
+on:
+  workflow_call:
+    inputs:
+      target_repository:
+        required: false
+        type: string
+        default: maelstrom-labs/learn-maelstrom-labs
+      target_branch:
+        required: false
+        type: string
+        default: main
+      manifest_path:
+        required: false
+        type: string
+        default: learn-manifest.json
+      project_slug:
+        required: false
+        type: string
+        default: ""
+      source_artifact_root:
+        required: false
+        type: string
+        default: ""
+    secrets:
+      learn_repo_token:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ingest-${{ inputs.target_repository }}-${{ inputs.target_branch }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Check out source repository
+        uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Check out learn site repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.target_repository }}
+          ref: ${{ inputs.target_branch }}
+          token: ${{ secrets.learn_repo_token }}
+          path: site
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Resolve project slug
+        id: manifest
+        run: |
+          PROJECT_SLUG=$(node - <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const sourceRoot = process.env.SOURCE_ROOT;
+          const manifestPath = path.join(sourceRoot, process.env.MANIFEST_PATH);
+          const overrideSlug = process.env.PROJECT_SLUG_OVERRIDE;
+          if (overrideSlug) {
+            process.stdout.write(overrideSlug);
+            process.exit(0);
+          }
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+          process.stdout.write(manifest.project.slug);
+          NODE
+          )
+          echo "project_slug=$PROJECT_SLUG" >> "$GITHUB_OUTPUT"
+        env:
+          SOURCE_ROOT: ${{ github.workspace }}/source
+          MANIFEST_PATH: ${{ inputs.manifest_path }}
+          PROJECT_SLUG_OVERRIDE: ${{ inputs.project_slug }}
+
+      - name: Sync source artifacts into the site repo
+        run: |
+          EXTRA_ARGS=()
+
+          if [[ -n "${SOURCE_ARTIFACT_ROOT}" ]]; then
+            EXTRA_ARGS+=(--source-artifact-root "$SOURCE_ARTIFACT_ROOT")
+          fi
+
+          node site/scripts/sync-project-artifacts.mjs \
+            --source-root "$GITHUB_WORKSPACE/source" \
+            --target-root "$GITHUB_WORKSPACE/site" \
+            --manifest-path "${MANIFEST_PATH}" \
+            --project-slug "${PROJECT_SLUG}" \
+            --source-repository "${GITHUB_REPOSITORY}" \
+            --source-ref-name "${GITHUB_REF_NAME}" \
+            --source-sha "${GITHUB_SHA}" \
+            "${EXTRA_ARGS[@]}"
+        env:
+          MANIFEST_PATH: ${{ inputs.manifest_path }}
+          PROJECT_SLUG: ${{ steps.manifest.outputs.project_slug }}
+          SOURCE_ARTIFACT_ROOT: ${{ inputs.source_artifact_root }}
+
+      - name: Commit and push synced artifacts
+        working-directory: site
+        env:
+          PROJECT_SLUG: ${{ steps.manifest.outputs.project_slug }}
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all public/generated src/data/ingested-projects.json
+
+          if git diff --cached --quiet; then
+            echo "No learn-site changes detected for ${PROJECT_SLUG}."
+            exit 0
+          fi
+
+          git commit -m "Sync ${PROJECT_SLUG} artifacts from ${SOURCE_REPOSITORY}@${SOURCE_SHA}"
+          git pull --rebase origin "${TARGET_BRANCH}"
+          git push origin HEAD:${TARGET_BRANCH}

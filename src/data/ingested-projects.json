@@ -1,0 +1,33 @@
+{
+  "projects": [
+    {
+      "slug": "usb-pd-type-c-breakout",
+      "name": "USB PD Type-C Breakout",
+      "tagline": "Flexible USB-C Power Delivery breakout for prototypes, test rigs, and bench power workflows.",
+      "summary": "A compact USB Type-C Power Delivery breakout board with selectable voltages, publishable board files, and vendor reference documents.",
+      "status": "Published reference design",
+      "lead": "Keep board files, vendor references, and generated outputs tied to the same public project record.",
+      "hardware": [
+        "2.54 mm headers",
+        "Breakout board",
+        "IP2721",
+        "USB-C PD"
+      ],
+      "skills": [
+        "hardware documentation",
+        "power delivery",
+        "prototype support"
+      ],
+      "overview": [
+        "The USB PD Type-C Breakout repository already produces the documentation artifacts that a support site needs: schematics, board dimensions, vendor datasheets, and placeholder code buckets.",
+        "This manifest gives the learn site enough metadata to ingest those artifacts automatically and expose them on a project page without hand-editing the frontend for each new hardware release."
+      ],
+      "highlights": [
+        "Publishes schematics, board dimensions, and vendor datasheets from the hardware repo.",
+        "Uses a reusable workflow hosted by the learn site repository.",
+        "Keeps the project ready for richer editorial content later."
+      ],
+      "syncedAt": "2026-04-09T10:36:59.190Z"
+    }
+  ]
+}

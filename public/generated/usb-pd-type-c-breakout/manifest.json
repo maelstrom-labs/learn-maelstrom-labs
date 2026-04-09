@@ -1,0 +1,48 @@
+{
+  "project": {
+    "slug": "usb-pd-type-c-breakout",
+    "name": "USB PD Type-C Breakout",
+    "summary": "A compact USB Type-C Power Delivery breakout board with selectable voltages, publishable board files, and vendor reference documents."
+  },
+  "sync": {
+    "syncedAt": "2026-04-09T10:36:59.190Z"
+  },
+  "artifacts": {
+    "root": "documents",
+    "buckets": [
+      {
+        "slug": "board-dimensions",
+        "sourcePath": "board-dimensions",
+        "files": [
+          "board-dimensions/usb_pd_type-c_breakout_v1.0.pdf"
+        ]
+      },
+      {
+        "slug": "code",
+        "sourcePath": "code",
+        "files": []
+      },
+      {
+        "slug": "data-sheets",
+        "sourcePath": "data-sheets",
+        "files": []
+      },
+      {
+        "slug": "datasheets",
+        "sourcePath": "datasheets",
+        "files": [
+          "datasheets/ip2721.pdf",
+          "datasheets/ip2721_d.pdf",
+          "datasheets/usb-type-c-019.pdf"
+        ]
+      },
+      {
+        "slug": "schematics",
+        "sourcePath": "schematics",
+        "files": [
+          "schematics/usb_pd_type-c_breakout_v1.0.pdf"
+        ]
+      }
+    ]
+  }
+}

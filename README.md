@@ -1,36 +1,114 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Learn Maelstrom Labs
 
-## Getting Started
+Static documentation site for electronics projects, tutorials, product information, blog posts, and news.
 
-First, run the development server:
+## What This Repo Is
+
+This repo is now a static-exported Next.js site built to feel closer to a hardware learning platform than a generic app shell.
+
+- Project pages are the anchor records for each hardware effort.
+- Tutorials explain workflows like bring-up and release publishing.
+- Product pages hold support-oriented reference information.
+- Blog posts capture engineering lessons and revision stories.
+- News posts handle short release and site updates.
+
+The editorial content model lives in `src/lib/site-content.ts`, while source-repo project records can be synced into `src/data/ingested-projects.json`. That keeps the information architecture separate from the page shell and makes it easier to swap the static data layer for Django-backed APIs later.
+
+## Site Sections
+
+- `/projects`
+- `/tutorials`
+- `/products`
+- `/blog`
+- `/news`
+
+## Generated Hardware Artifacts
+
+Another repository can publish static outputs into `public/generated/<project-slug>/` without changing the frontend routes.
+
+Recommended buckets:
+
+- `board-dimensions`
+- `code`
+- `data-sheets`
+- `datasheets`
+- `schematics`
+
+Project pages now scan those buckets at build time and expose real download links whenever files are present.
+
+## Development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run the local development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Run checks:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run lint
+npm run typecheck
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Sync artifacts from a source repo into this site:
 
-## Learn More
+```bash
+npm run sync:project -- \
+	--source-root ../usb-pd-type-c-breakout \
+	--target-root . \
+	--manifest-path learn-manifest.json
+```
 
-To learn more about Next.js, take a look at the following resources:
+Build the static site:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The exported static site is written to `out/`.
 
-## Deploy on Vercel
+Preview the exported output locally:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm start
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## GitHub Hosting
+
+`next.config.ts` is configured with `output: "export"`, so this repo can be hosted on GitHub Pages or any other static host.
+
+This repo now includes:
+
+- `.github/workflows/deploy-pages.yml` to build and deploy the static export to GitHub Pages.
+- `public/CNAME` for the custom domain `learn.maelstromlabs.com`.
+- `SITE_URL` and `SITE_BASE_PATH` environment support at build time.
+
+Recommended repository variables for GitHub Actions:
+
+- `SITE_URL`: `https://learn.maelstromlabs.com`
+- `SITE_BASE_PATH`: empty for the custom domain, or `/learn-maelstrom-labs` if you need a repo-subpath build
+
+Because GitHub Pages project URLs and custom domains use different roots, `SITE_BASE_PATH` is intentionally build-time configurable instead of hardcoded.
+
+## Source Repo Ingestion Pattern
+
+This repo includes a reusable workflow at `.github/workflows/ingest-project-artifacts.yml`.
+
+Source repos should:
+
+1. Add a root `learn-manifest.json` file with project metadata and artifact bucket definitions.
+2. Store publishable outputs under a stable artifact root such as `documents/`.
+3. Call the reusable workflow on push to sync files into this repo.
+
+The sync script does three things:
+
+- Copies artifact files into `public/generated/<project-slug>/...`
+- Writes a public sync manifest into `public/generated/<project-slug>/manifest.json`
+- Updates `src/data/ingested-projects.json` so the project appears in the site navigation automatically
