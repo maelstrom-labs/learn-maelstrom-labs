@@ -27,7 +27,10 @@
         "Uses a reusable workflow hosted by the learn site repository.",
         "Keeps the project ready for richer editorial content later."
       ],
-      "syncedAt": "2026-04-09T10:36:59.190Z"
+      "sourceRepository": "maelstrom-labs/usb-pd-type-c-breakout",
+      "sourceRefName": "main",
+      "sourceSha": "25748a34a9231853a04c001d49476c18494473d5",
+      "syncedAt": "2026-04-10T05:22:05.971Z"
     }
   ]
 }
