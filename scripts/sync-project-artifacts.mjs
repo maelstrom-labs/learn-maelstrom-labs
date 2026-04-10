@@ -70,6 +70,55 @@ function writeJsonFile(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function removeIfFileExists(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+
+  const stat = fs.statSync(filePath);
+
+  if (stat.isFile()) {
+    fs.rmSync(filePath, { force: true });
+  }
+}
+
+function pruneEmptyDirectories(startPath, stopPath) {
+  let currentPath = startPath;
+
+  while (
+    currentPath.startsWith(stopPath) &&
+    currentPath !== stopPath &&
+    fs.existsSync(currentPath)
+  ) {
+    if (fs.readdirSync(currentPath).length > 0) {
+      break;
+    }
+
+    fs.rmdirSync(currentPath);
+    currentPath = path.dirname(currentPath);
+  }
+}
+
+function removePreviouslyPublishedFiles(previousManifest, targetRoot) {
+  const publicRoot = previousManifest?.artifacts?.publicRoot;
+
+  if (!publicRoot) {
+    return;
+  }
+
+  const publicRootPath = path.join(targetRoot, "public", publicRoot);
+
+  for (const bucket of previousManifest.artifacts?.buckets ?? []) {
+    for (const relativeFilePath of bucket.files ?? []) {
+      const absolutePath = path.join(targetRoot, "public", relativeFilePath);
+      removeIfFileExists(absolutePath);
+      pruneEmptyDirectories(path.dirname(absolutePath), publicRootPath);
+    }
+  }
+
+  pruneEmptyDirectories(publicRootPath, path.join(targetRoot, "public"));
+}
+
 function uniqueSorted(values = []) {
   return [...new Set(values)].sort((left, right) => left.localeCompare(right));
 }
@@ -113,19 +162,30 @@ const sourceRefName =
 const sourceSha = args["source-sha"] ?? process.env.GITHUB_SHA ?? undefined;
 
 const targetGeneratedRoot = path.join(targetRoot, "public", "generated", projectSlug);
+const publicRoot = artifacts.publicRoot ?? path.posix.join("generated", projectSlug);
+const targetPublicRoot = path.join(targetRoot, "public", ...publicRoot.split("/"));
+const previousManifestPath = path.join(targetGeneratedRoot, "manifest.json");
+const previousManifest = fs.existsSync(previousManifestPath)
+  ? readJsonFile(previousManifestPath)
+  : null;
+
+removePreviouslyPublishedFiles(previousManifest, targetRoot);
 fs.rmSync(targetGeneratedRoot, { recursive: true, force: true });
 ensureDirectory(targetGeneratedRoot);
+ensureDirectory(targetPublicRoot);
 
 const copiedBuckets = buckets.map((bucket) => {
   const sourceBucketPath = path.join(artifactRoot, bucket.path);
-  const targetBucketPath = path.join(targetGeneratedRoot, bucket.slug);
+  const targetBucketPath = path.join(targetPublicRoot, bucket.path);
   const copiedFiles = copyDirectoryContents(sourceBucketPath, targetBucketPath);
+  const publicBucketPath = path.posix.join(publicRoot, bucket.path);
 
   return {
     slug: bucket.slug,
     sourcePath: bucket.path,
+    publicPath: publicBucketPath,
     files: copiedFiles.map((filePath) =>
-      path.relative(targetGeneratedRoot, filePath).split(path.sep).join("/"),
+      path.relative(path.join(targetRoot, "public"), filePath).split(path.sep).join("/"),
     ),
   };
 });
@@ -144,6 +204,7 @@ writeJsonFile(path.join(targetGeneratedRoot, "manifest.json"), {
   },
   artifacts: {
     root: path.relative(sourceRoot, artifactRoot).split(path.sep).join("/"),
+    publicRoot,
     buckets: copiedBuckets,
   },
 });

@@ -24,6 +24,15 @@ export interface ProjectArtifactSync {
 }
 
 interface PublicArtifactManifest {
+  artifacts?: {
+    publicRoot?: string;
+    buckets?: Array<{
+      slug: string;
+      sourcePath?: string;
+      publicPath?: string;
+      files?: string[];
+    }>;
+  };
   sync?: ProjectArtifactSync;
 }
 
@@ -72,11 +81,73 @@ function walkFiles(directoryPath: string, rootPath: string): ArtifactFile[] {
   });
 }
 
+function readPublicArtifactManifest(projectSlug: string): PublicArtifactManifest | null {
+  const manifestPath = path.join(generatedRoot, projectSlug, "manifest.json");
+
+  if (!fs.existsSync(manifestPath)) {
+    return null;
+  }
+
+  return JSON.parse(fs.readFileSync(manifestPath, "utf8")) as PublicArtifactManifest;
+}
+
+function filesFromManifest(
+  publicBucketPath: string,
+  filePaths: string[],
+): ArtifactFile[] {
+  return filePaths.flatMap((filePath) => {
+    const absolutePath = path.join(process.cwd(), "public", filePath);
+
+    if (!fs.existsSync(absolutePath)) {
+      return [];
+    }
+
+    const stat = fs.statSync(absolutePath);
+
+    if (!stat.isFile()) {
+      return [];
+    }
+
+    const relativePath = path.posix.relative(publicBucketPath, filePath) || path.posix.basename(filePath);
+
+    return [
+      {
+        name: path.posix.basename(filePath),
+        relativePath,
+        href: withBasePath(`/${filePath}`),
+        sizeBytes: stat.size,
+        sizeLabel: formatBytes(stat.size),
+      },
+    ];
+  });
+}
+
 export function getProjectArtifactBuckets(
   projectSlug: string,
   resourceBuckets: ResourceBucket[],
 ): ProjectArtifactBucket[] {
+  const manifest = readPublicArtifactManifest(projectSlug);
+  const manifestBucketMap = new Map(
+    (manifest?.artifacts?.buckets ?? []).map((bucket) => [bucket.slug, bucket]),
+  );
+
   return resourceBuckets.map((bucket) => {
+    const manifestBucket = manifestBucketMap.get(bucket.slug);
+
+    if (manifestBucket) {
+      const publicBucketPath = manifestBucket.publicPath ?? bucket.publicPath.replace(/^\//, "");
+      const files = filesFromManifest(publicBucketPath, manifestBucket.files ?? []).sort(
+        (left, right) => left.relativePath.localeCompare(right.relativePath),
+      );
+
+      return {
+        ...bucket,
+        publicPath: `/${publicBucketPath}`,
+        status: files.length > 0 ? "ready" : "pipeline",
+        files,
+      };
+    }
+
     const bucketDirectory = path.join(generatedRoot, projectSlug, bucket.slug);
     const files = walkFiles(bucketDirectory, bucketDirectory).sort((left, right) =>
       left.relativePath.localeCompare(right.relativePath),
@@ -91,15 +162,11 @@ export function getProjectArtifactBuckets(
 }
 
 export function getProjectArtifactSync(projectSlug: string): ProjectArtifactSync | null {
-  const manifestPath = path.join(generatedRoot, projectSlug, "manifest.json");
+  const manifest = readPublicArtifactManifest(projectSlug);
 
-  if (!fs.existsSync(manifestPath)) {
+  if (!manifest) {
     return null;
   }
-
-  const manifest = JSON.parse(
-    fs.readFileSync(manifestPath, "utf8"),
-  ) as PublicArtifactManifest;
 
   return manifest.sync ?? null;
 }
