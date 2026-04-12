@@ -88,6 +88,7 @@ npm start
 This repo now includes:
 
 - `.github/workflows/deploy-pages.yml` to build and deploy the static export to GitHub Pages.
+- `.github/workflows/open-artifact-sync-pr.yml` to turn pushed `artifact-sync/*` branches into pull requests on this repo.
 - `public/CNAME` for the custom domain `learn.maelstromlabs.com`.
 - `SITE_URL` and `SITE_BASE_PATH` environment support at build time.
 
@@ -113,9 +114,9 @@ For GitHub Actions authentication, use a GitHub App instead of a personal access
 - Install the GitHub App on `maelstrom-labs/learn-maelstrom-labs` with `Contents: Read and write`.
 - Store the GitHub App client ID in a GitHub Actions variable in each source repo, or as an organization variable shared with selected repos.
 - Store `LEARN_SITE_APP_PRIVATE_KEY` as a GitHub Actions secret in each source repo, or as an organization secret shared with selected repos.
-- Grant the GitHub App `Contents: Read and write` and `Pull requests: Read and write` so the reusable workflow can mint a short-lived installation token during the run.
 - If an existing source repo variable was populated with the numeric app ID, replace that value with the GitHub App client ID before enabling the PR-based sync flow.
-- The reusable workflow now opens or updates an artifact-sync pull request instead of pushing directly to `main`.
+- The reusable workflow now pushes updates to an `artifact-sync/<project-slug>` branch in this repo.
+- This repo then opens or updates the corresponding pull request with its own `GITHUB_TOKEN`, so the GitHub App does not need pull-request permission.
 
 The sync script does three things:
 

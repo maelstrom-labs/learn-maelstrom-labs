@@ -71,7 +71,6 @@ jobs:
           owner: ${{ steps.target-repository.outputs.owner }}
           repositories: ${{ steps.target-repository.outputs.repository }}
           permission-contents: write
-          permission-pull-requests: write
 
       - name: Check out learn site repository
         uses: actions/checkout@v4
@@ -131,50 +130,39 @@ jobs:
           PROJECT_SLUG: ${{ steps.manifest.outputs.project_slug }}
           SOURCE_ARTIFACT_ROOT: ${{ inputs.source_artifact_root }}
 
-      - name: Create or update artifact sync pull request
-        id: artifact-pr
+      - name: Commit and push artifact sync branch
+        working-directory: site
         env:
           PROJECT_SLUG: ${{ steps.manifest.outputs.project_slug }}
           TARGET_BRANCH: ${{ inputs.target_branch }}
           SOURCE_REPOSITORY: ${{ github.repository }}
           SOURCE_SHA: ${{ github.sha }}
-        uses: peter-evans/create-pull-request@v8
-        with:
-          token: ${{ steps.app-token.outputs.token }}
-          path: site
-          add-paths: |
-            public/generated
-            src/data/ingested-projects.json
-            public/documents
-          base: ${{ inputs.target_branch }}
-          branch: artifact-sync/${{ steps.manifest.outputs.project_slug }}
-          delete-branch: true
-          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          commit-message: |
-            Sync ${{ steps.manifest.outputs.project_slug }} artifacts from ${{ github.repository }}@${{ github.sha }}
-
-            Source ref: ${{ github.ref_name }}
-          title: Sync ${{ steps.manifest.outputs.project_slug }} artifacts
-          body: |
-            Automated artifact sync for `${{ steps.manifest.outputs.project_slug }}`.
-
-            - Source repository: `${{ github.repository }}`
-            - Source ref: `${{ github.ref_name }}`
-            - Source SHA: `${{ github.sha }}`
-          labels: |
-            automation
-            artifact-sync
-
-      - name: Report pull request result
         run: |
-          if [[ "${PR_OPERATION}" == "none" ]]; then
+          BRANCH_NAME="artifact-sync/${PROJECT_SLUG}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+
+          if git diff --cached --quiet; then
+            echo "branch_name=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git checkout -B "$BRANCH_NAME"
+          git commit -m "Sync ${PROJECT_SLUG} artifacts" -m "Automated artifact sync from ${SOURCE_REPOSITORY}." -m "- Source ref: ${GITHUB_REF_NAME}" -m "- Source SHA: ${SOURCE_SHA}"
+          git push --force origin "HEAD:refs/heads/${BRANCH_NAME}"
+          echo "branch_name=${BRANCH_NAME}" >> "$GITHUB_OUTPUT"
+        id: artifact-branch
+
+      - name: Report sync branch result
+        run: |
+          if [[ -z "${BRANCH_NAME}" ]]; then
             echo "No learn-site changes detected for ${PROJECT_SLUG}."
             exit 0
           fi
 
-          echo "Artifact sync pull request ${PR_OPERATION}: ${PR_URL}"
+          echo "Artifact sync branch pushed: ${BRANCH_NAME}"
         env:
           PROJECT_SLUG: ${{ steps.manifest.outputs.project_slug }}
-          PR_OPERATION: ${{ steps.artifact-pr.outputs.pull-request-operation }}
-          PR_URL: ${{ steps.artifact-pr.outputs.pull-request-url }}
+          BRANCH_NAME: ${{ steps.artifact-branch.outputs.branch_name }}
