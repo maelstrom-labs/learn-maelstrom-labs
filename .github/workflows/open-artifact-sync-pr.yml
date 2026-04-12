@@ -33,7 +33,7 @@ jobs:
           TITLE=$(git log -1 --pretty=%s)
           BODY=$(git log -1 --pretty=%b)
           HEAD_REF="${GITHUB_REPOSITORY_OWNER}:${BRANCH_NAME}"
-          EXISTING_PR_NUMBER=$(gh pr list --head "$HEAD_REF" --base main --json number --jq '.[0].number // empty')
+          EXISTING_PR_NUMBER=$(gh pr list --state open --search "head:${BRANCH_NAME} base:main" --json number --jq '.[0].number // empty')
 
           if [[ -n "$EXISTING_PR_NUMBER" ]]; then
             gh pr edit "$EXISTING_PR_NUMBER" --title "$TITLE" --body "${BODY:-Automated artifact sync update.}"
