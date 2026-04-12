@@ -4,6 +4,7 @@ on:
   workflow_call:
     inputs:
       github_app_id:
+        description: Legacy input name; pass the GitHub App client ID used to mint the installation token.
         required: true
         type: string
       target_repository:
@@ -65,11 +66,12 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ inputs.github_app_id }}
+          client-id: ${{ inputs.github_app_id }}
           private-key: ${{ secrets.learn_site_app_private_key }}
           owner: ${{ steps.target-repository.outputs.owner }}
           repositories: ${{ steps.target-repository.outputs.repository }}
           permission-contents: write
+          permission-pull-requests: write
 
       - name: Check out learn site repository
         uses: actions/checkout@v4
@@ -129,23 +131,50 @@ jobs:
           PROJECT_SLUG: ${{ steps.manifest.outputs.project_slug }}
           SOURCE_ARTIFACT_ROOT: ${{ inputs.source_artifact_root }}
 
-      - name: Commit and push synced artifacts
-        working-directory: site
+      - name: Create or update artifact sync pull request
+        id: artifact-pr
         env:
           PROJECT_SLUG: ${{ steps.manifest.outputs.project_slug }}
           TARGET_BRANCH: ${{ inputs.target_branch }}
           SOURCE_REPOSITORY: ${{ github.repository }}
           SOURCE_SHA: ${{ github.sha }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add --all public/generated src/data/ingested-projects.json
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          path: site
+          add-paths: |
+            public/generated
+            src/data/ingested-projects.json
+            public/documents
+          base: ${{ inputs.target_branch }}
+          branch: artifact-sync/${{ steps.manifest.outputs.project_slug }}
+          delete-branch: true
+          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          commit-message: |
+            Sync ${{ steps.manifest.outputs.project_slug }} artifacts from ${{ github.repository }}@${{ github.sha }}
 
-          if git diff --cached --quiet; then
+            Source ref: ${{ github.ref_name }}
+          title: Sync ${{ steps.manifest.outputs.project_slug }} artifacts
+          body: |
+            Automated artifact sync for `${{ steps.manifest.outputs.project_slug }}`.
+
+            - Source repository: `${{ github.repository }}`
+            - Source ref: `${{ github.ref_name }}`
+            - Source SHA: `${{ github.sha }}`
+          labels: |
+            automation
+            artifact-sync
+
+      - name: Report pull request result
+        run: |
+          if [[ "${PR_OPERATION}" == "none" ]]; then
             echo "No learn-site changes detected for ${PROJECT_SLUG}."
             exit 0
           fi
 
-          git commit -m "Sync ${PROJECT_SLUG} artifacts from ${SOURCE_REPOSITORY}@${SOURCE_SHA}"
-          git pull --rebase origin "${TARGET_BRANCH}"
-          git push origin HEAD:${TARGET_BRANCH}
+          echo "Artifact sync pull request ${PR_OPERATION}: ${PR_URL}"
+        env:
+          PROJECT_SLUG: ${{ steps.manifest.outputs.project_slug }}
+          PR_OPERATION: ${{ steps.artifact-pr.outputs.pull-request-operation }}
+          PR_URL: ${{ steps.artifact-pr.outputs.pull-request-url }}

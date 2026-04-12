@@ -24,7 +24,7 @@ The editorial content model lives in `src/lib/site-content.ts`, while source-rep
 
 ## Generated Hardware Artifacts
 
-Another repository can publish static outputs into `public/generated/<project-slug>/` without changing the frontend routes.
+Another repository can publish static outputs into a configurable public root without changing the frontend routes.
 
 Recommended buckets:
 
@@ -35,6 +35,7 @@ Recommended buckets:
 - `schematics`
 
 Project pages now scan those buckets at build time and expose real download links whenever files are present.
+Per-project sync metadata remains in `public/generated/<project-slug>/manifest.json` even when the actual files publish somewhere else such as `public/documents/...`.
 
 ## Development
 
@@ -110,12 +111,15 @@ Source repos should:
 For GitHub Actions authentication, use a GitHub App instead of a personal access token:
 
 - Install the GitHub App on `maelstrom-labs/learn-maelstrom-labs` with `Contents: Read and write`.
-- Store `LEARN_SITE_APP_ID` as a GitHub Actions variable in each source repo, or as an organization variable shared with selected repos.
+- Store the GitHub App client ID in a GitHub Actions variable in each source repo, or as an organization variable shared with selected repos.
 - Store `LEARN_SITE_APP_PRIVATE_KEY` as a GitHub Actions secret in each source repo, or as an organization secret shared with selected repos.
-- Pass those credentials into the reusable workflow so it can mint a short-lived installation token during the run.
+- Grant the GitHub App `Contents: Read and write` and `Pull requests: Read and write` so the reusable workflow can mint a short-lived installation token during the run.
+- If an existing source repo variable was populated with the numeric app ID, replace that value with the GitHub App client ID before enabling the PR-based sync flow.
+- The reusable workflow now opens or updates an artifact-sync pull request instead of pushing directly to `main`.
 
 The sync script does three things:
 
-- Copies artifact files into `public/generated/<project-slug>/...`
+- Copies artifact files into the configured public root such as `public/documents/...`
 - Writes a public sync manifest into `public/generated/<project-slug>/manifest.json`
 - Updates `src/data/ingested-projects.json` so the project appears in the site navigation automatically
+
