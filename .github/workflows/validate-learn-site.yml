@@ -1,6 +1,9 @@
 name: Validate Learn Site
 
 on:
+  push:
+    branches:
+      - artifact-sync/**
   pull_request:
     branches:
       - main
